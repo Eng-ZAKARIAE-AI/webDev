@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: aeroguard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aeroguard_db
+      POSTGRES_USER: aeroguard_user
+      POSTGRES_PASSWORD: aeroguard_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aeroguard_user -d aeroguard_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # AeroGuard Application (Development)
+  app:
+    build: .
+    container_name: aeroguard-app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://aeroguard_user:aeroguard_password@postgres:5432/aeroguard_db
+      - HUGGING_FACE_API_KEY=${HUGGING_FACE_API_KEY}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_WHATSAPP_NUMBER=${TWILIO_WHATSAPP_NUMBER}
+      - TECHNICIAN_WHATSAPP_NUMBERS=${TECHNICIAN_WHATSAPP_NUMBERS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev
+
+volumes:
+  postgres_data:
+
